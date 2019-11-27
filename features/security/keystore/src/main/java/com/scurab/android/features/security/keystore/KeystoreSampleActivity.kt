@@ -19,6 +19,10 @@ import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.TextView
 import android.widget.Toast
+import androidx.biometric.BiometricPrompt
+import androidx.core.content.ContextCompat
+import androidx.core.view.postDelayed
+import androidx.fragment.app.FragmentActivity
 import androidx.security.crypto.EncryptedSharedPreferences
 import com.google.android.material.snackbar.Snackbar
 import com.scurab.android.features.security.keystore.app.R
@@ -57,19 +61,31 @@ private const val ALIAS_SYMMETRIC_ENCRYPT = "S_EncryptDecrypt"
  * https://developer.android.com/guide/topics/security/cryptography
  * https://proandroiddev.com/secure-data-in-android-encryption-in-android-part-1-e5fd150e316f
  * https://developer.android.com/reference/javax/crypto/KeyGenerator
+ *
+ *
+ * Observations:
+ * Keystore bound to the PIN/FP
+ * - Only decrypting is bound to the biometrics, encrypting is not => encryption can be done anytime (=> we could keep the refresh token in the memory for time being and load it (and show FP) only when the app starts, because refresh token is not in memory)
+ * - timeout when you kill the app/destroy activity or backround the app only ?
+ * - swipe oup activity doesn't invalidate the timeout => you can still decrypt
+ * - killing the process doesn't invalidate the timeout => you can still decrypt
+ * - explicit reshowing FP anywhere (even in different app for example device settings) keeps it unlocked
  */
 
 @TargetApi(23)
-class KeystoreSampleActivity : Activity() {
+class KeystoreSampleActivity : FragmentActivity() {
 
     //just imported to see how can be shared prefs used
-    private val encryptedSharedPreference = EncryptedSharedPreferences.create(
-        "encsharedprefs.xml",
-        "KeystoreSampleActivity",
-        this,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-    )
+    private val encryptedSharedPreference by lazy {
+        EncryptedSharedPreferences.create(
+            "encsharedprefs.xml",
+            "KeystoreSampleActivity",
+            this,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
+
     private val keyguardManager by lazy { (getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager) }
     private val ivParameterSpec = IvParameterSpec(byteArrayOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15))
     private val aliasConfigs = listOf(
@@ -151,7 +167,7 @@ class KeystoreSampleActivity : Activity() {
                             .run {
                                 //region optional
                                 setUserAuthenticationRequired(true)
-                                setUserAuthenticationValidityDurationSeconds(15)
+                                setUserAuthenticationValidityDurationSeconds(60)
                                 //endregion
                                 setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA512)
                                 setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_PKCS1)
@@ -195,12 +211,46 @@ class KeystoreSampleActivity : Activity() {
         encrypt.setSafeOnClickListener { encrypt() }
         decrypt.setSafeOnClickListener { decrypt() }
         clear.setSafeOnClickListener { output.text = null }
+        biometricPrompt.setSafeOnClickListener {
+            showBiometricPrompt(true)
+        }
 
         reinitSpinner()
     }
 
     private fun View.setSafeOnClickListener(block: () -> Unit) {
         this.setOnClickListener { swallowing { block() } }
+    }
+
+    private fun showBiometricPrompt(enablePasswordFallback: Boolean) {
+        val promptInfo = BiometricPrompt.PromptInfo.Builder()
+            .setTitle("Biometric")
+            .setSubtitle("Log in using your biometric credential")
+            .apply {
+                if (enablePasswordFallback) {
+                    setDeviceCredentialAllowed(true)
+                } else {
+                    setDeviceCredentialAllowed(false)
+                    setNegativeButtonText("Cancel")
+                }
+            }
+            .build()
+
+        BiometricPrompt(this, ContextCompat.getMainExecutor(this), object: BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                super.onAuthenticationSucceeded(result)
+            }
+
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                super.onAuthenticationError(errorCode, errString)
+                toast("onAuthenticationError\n$errString")
+            }
+
+            override fun onAuthenticationFailed() {
+                super.onAuthenticationFailed()
+                toast("onAuthenticationFailed")
+            }
+        }).authenticate(promptInfo)
     }
 
     @TargetApi(Build.VERSION_CODES.M)
@@ -211,9 +261,7 @@ class KeystoreSampleActivity : Activity() {
             Snackbar
                 .make(findViewById(android.R.id.content), "UserNotAuthenticatedException", Snackbar.LENGTH_SHORT)
                 .setAction("Authenticate") {
-                    keyguardManager
-                        .createConfirmDeviceCredentialIntent("Test", "Test")
-                        .let { startActivity(it) }
+                    showBiometricPrompt(true)
                 }
                 .show()
 
