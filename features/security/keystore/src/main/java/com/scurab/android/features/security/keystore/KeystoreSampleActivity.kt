@@ -15,13 +15,14 @@ import android.security.ConfirmationPrompt
 import android.security.keystore.*
 import android.util.Base64
 import android.util.Log
+import android.view.LayoutInflater
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.TextView
 import android.widget.Toast
 import com.google.android.material.snackbar.Snackbar
 import com.scurab.android.features.security.keystore.app.R
-import kotlinx.android.synthetic.main.activity_keystore.*
+import com.scurab.android.features.security.keystore.app.databinding.ActivityKeystoreBinding
 import java.security.*
 import java.security.spec.KeySpec
 import java.util.*
@@ -179,17 +180,22 @@ class KeystoreSampleActivity : Activity() {
         }
     ).associateBy { it.alias }
 
+    private lateinit var views: ActivityKeystoreBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_keystore)
-        sign.setSafeOnClickListener { sign() }
-        verify.setSafeOnClickListener { verify() }
-        encrypt.setSafeOnClickListener { encrypt() }
-        decrypt.setSafeOnClickListener { decrypt() }
-        clear.setSafeOnClickListener { output.text = null }
+        ActivityKeystoreBinding.inflate(LayoutInflater.from(this)).also {
+            views = it
+            setContentView(it.root)
 
-        reinitSpinner()
+            it.sign.setSafeOnClickListener { sign() }
+            it.verify.setSafeOnClickListener { verify() }
+            it.encrypt.setSafeOnClickListener { encrypt() }
+            it.decrypt.setSafeOnClickListener { decrypt() }
+            it.clear.setSafeOnClickListener { it.output.text = null }
+
+            reinitSpinner()
+        }
     }
 
     private fun View.setSafeOnClickListener(block: () -> Unit) {
@@ -240,7 +246,7 @@ class KeystoreSampleActivity : Activity() {
         val items = aliasConfigs.keys.sorted().toMutableList()
         items.add(0, "Select alias...")
 
-        aliases.adapter =
+        views.aliases.adapter =
             ArrayAdapter(this, android.R.layout.simple_spinner_item, items).apply {
                 setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             }
@@ -279,9 +285,9 @@ class KeystoreSampleActivity : Activity() {
     }
 
     fun getAlias(): String {
-        return aliases.selectedItemPosition
+        return views.aliases.selectedItemPosition
             .takeIf { it > 0 }
-            ?.let { aliases.selectedItem as String }
+            ?.let { views.aliases.selectedItem as String }
             ?: throw IllegalStateException("Pick alias")
     }
 
@@ -306,7 +312,7 @@ class KeystoreSampleActivity : Activity() {
 
     //region verification
     private fun sign() {
-        val data = input.text.toString()
+        val data = views.input.text.toString()
         val dataBytes = data.toByteArray()
         val alias = getAlias()
 
@@ -319,15 +325,15 @@ class KeystoreSampleActivity : Activity() {
             sign()
         }
 
-        key.setTextBase(signature)
-        key.tag = signature
+        views.key.setTextBase(signature)
+        views.key.tag = signature
         updateKeyTextColor(alias)
     }
 
     private fun verify() {
-        val data = input.text.toString()
+        val data = views.input.text.toString()
         val dataBytes = data.toByteArray()
-        val signatureBytes = key.getTextBase()
+        val signatureBytes = views.key.getTextBase()
 
         if (data.isEmpty() || signatureBytes == null) {
             toast("No key!")
@@ -343,14 +349,14 @@ class KeystoreSampleActivity : Activity() {
             verify(signatureBytes)
         }
 
-        output.setText("Verified:$verified")
+        views.output.setText("Verified:$verified")
         updateKeyTextColor(alias)
     }
     //endregion
 
     //region encryption
     fun encrypt() {
-        val data = input.text.toString()
+        val data = views.input.text.toString()
         val dataBytes = data.toByteArray()
         val alias = getAlias()
 
@@ -364,14 +370,14 @@ class KeystoreSampleActivity : Activity() {
             doFinal(dataBytes)
         }
 
-        key.setTextBase(encrypted)
-        key.tag = encrypted
+        views.key.setTextBase(encrypted)
+        views.key.tag = encrypted
         updateKeyTextColor(alias)
     }
 
     fun decrypt() {
         val alias = getAlias()
-        val encryptedBytes = key.getTextBase()
+        val encryptedBytes = views.key.getTextBase()
 
         if (encryptedBytes == null) {
             toast("No encrypted!")
@@ -389,7 +395,7 @@ class KeystoreSampleActivity : Activity() {
             doFinal(encryptedBytes)
         }
 
-        output.setText(String(decrypted))
+        views.output.setText(String(decrypted))
         updateKeyTextColor(alias)
         updateKeyTextColor(alias)
     }
@@ -412,7 +418,7 @@ class KeystoreSampleActivity : Activity() {
         val color = getKeyInfo(alias)?.let {
             if (it.isInsideSecureHardware) R.color.dark_green else R.color.dark_red
         } ?: Color.BLACK
-        key.setTextColor(resources.getColor(color))
+        views.key.setTextColor(resources.getColor(color))
     }
 }
 
