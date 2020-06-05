@@ -1,0 +1,10 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="com.scurab.android.features.ui.theme.app">
+
+    <uses-feature android:name="android.hardware.camera.any" />
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <application>
+        <activity android:name="com.scurab.android.features.jetpack.camerax.CameraXSampleActivity"/>
+    </application>
+</manifest>
