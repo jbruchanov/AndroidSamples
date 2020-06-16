@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.scurab.android.features.dagger.hilt">
+
+    <application>
+<!--        <activity android:name=".HiltActivity" />-->
+    </application>
+</manifest>
